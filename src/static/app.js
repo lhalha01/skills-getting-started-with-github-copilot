@@ -19,12 +19,21 @@ document.addEventListener("DOMContentLoaded", () => {
         activityCard.className = "activity-card";
 
         const spotsLeft = details.max_participants - details.participants.length;
+        
+        // Create participants list HTML with a remove button per participant
+        const participantsList = details.participants.length > 0 
+          ? `<ul class="participants-list" data-activity="${encodeURIComponent(name)}">${details.participants.map(email => `<li class="participant-item"><span class="participant-email">${email}</span><button class="remove-participant" data-email="${encodeURIComponent(email)}" data-activity="${encodeURIComponent(name)}" title="Unregister">✖</button></li>`).join('')}</ul>`
+          : '<p class="no-participants">No participants yet</p>';
 
         activityCard.innerHTML = `
           <h4>${name}</h4>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <div class="participants-section">
+            <strong>Current Participants:</strong>
+            ${participantsList}
+          </div>
         `;
 
         activitiesList.appendChild(activityCard);
@@ -83,4 +92,49 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Initialize app
   fetchActivities();
+
+  // Delegate click handler to activities list to handle remove participant buttons
+  activitiesList.addEventListener('click', async (event) => {
+    const btn = event.target.closest('.remove-participant');
+    if (!btn) return;
+
+    const encodedEmail = btn.dataset.email;
+    const encodedActivity = btn.dataset.activity;
+    const email = decodeURIComponent(encodedEmail);
+    const activity = decodeURIComponent(encodedActivity);
+
+    // Disable button while processing
+    btn.disabled = true;
+
+    try {
+      const response = await fetch(`/activities/${encodeURIComponent(activity)}/unregister?email=${encodeURIComponent(email)}`, {
+        method: 'DELETE'
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        messageDiv.textContent = result.message;
+        messageDiv.className = 'success';
+        messageDiv.classList.remove('hidden');
+        // Refresh activities to show updated participant list
+        fetchActivities();
+      } else {
+        messageDiv.textContent = result.detail || 'An error occurred while unregistering';
+        messageDiv.className = 'error';
+        messageDiv.classList.remove('hidden');
+      }
+    } catch (error) {
+      console.error('Error unregistering participant:', error);
+      messageDiv.textContent = 'Failed to unregister. Please try again.';
+      messageDiv.className = 'error';
+      messageDiv.classList.remove('hidden');
+    } finally {
+      btn.disabled = false;
+      // Hide message after 5 seconds
+      setTimeout(() => {
+        messageDiv.classList.add('hidden');
+      }, 5000);
+    }
+  });
 });
